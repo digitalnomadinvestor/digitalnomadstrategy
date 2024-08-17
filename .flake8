@@ -1,0 +1,9 @@
+[flake8]
+exclude =
+    .git
+    __pychache__,
+    .pytest_cache,
+filename =
+    *.y,
+max-line-length = 120
+max-complexity = 10
