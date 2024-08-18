@@ -1,4 +1,6 @@
 import csv
+import pandas as pd
+import matplotlib.pyplot as plt
 import datetime
 
 
@@ -11,6 +13,7 @@ class BacktestStrategy:
     date_finish = None
     strategy_date_finish = None
     current_date: str = None
+    rebalance_mode: str = None
     rebalance_enabled: bool = False
     rebalance_dates = []
 
@@ -18,8 +21,12 @@ class BacktestStrategy:
     assets_for_strategy = []
     key_trade_dates = dict()
     historical_data = dict()
+    trade_days_yearly = dict()
+    trade_dates = []
     transactions_history = {"buy": {}, "sell": {}, "rebalancing": []}
     DEFAULT_DATE_FORMAT = "%Y-%m-%d"
+    DEFAULT_STOP_LOSS_PERCENTAGE = 0.03
+    EXPORT_FILENAME = 'export_data.csv'
 
     assets = {
         "LQDT": {
@@ -52,9 +59,12 @@ class BacktestStrategy:
             "stop_loss_percent": None,
             "quantity": 0,
         },
-        # выдуманный фонд - аналог LQDT который как будто бы существовал до создания LQDT
+        # Выдуманный фонд - аналог LQDT который как будто бы существовал до создания LQDT.
+        # Доходность берем как ставку рефинансирования ЦБ - 3%, делим ее на количество дней когда были сделки на бирже,
+        # таким образом получаем изменение в процентах за день, на основании этого расчитывается
+        # цена (изначально = 100 руб.)
         "CBRT": {
-            "csv_file": None,
+            "csv_file": "data/cbrt_history.csv",
             "current_price": 0,
             "stop_loss_price": None,
             "stop_loss_percent": None,
@@ -67,10 +77,21 @@ class BacktestStrategy:
         self.date_finish = datetime.datetime.strptime(date_finish, self.DEFAULT_DATE_FORMAT)
 
     def load_trade_dates(self) -> None:
-        with open("data/RU000A0EQ3R3.csv", "r") as f:
-            reader = csv.reader(f, dialect="excel")
-            for row in reader:
-                self.trade_data[row[0]] = {}
+        for filename in ["data/RU000A0EQ3R3.csv", "data/RU000A0EQ3Q5.csv"]:
+            with open(filename, "r") as f:
+                reader = csv.reader(f, dialect="excel")
+                for row in reader:
+                    date = row[0]
+                    if date not in self.trade_data:
+                        self.trade_data[date] = {}
+
+        # Считаем количество дней когда были торги на бирже по каждому году
+        trade_dates = sorted(list(set([trade_date for trade_date, dt in self.trade_data.items()])))
+        for trade_date in trade_dates:
+            trade_year = datetime.datetime.strptime(trade_date, self.DEFAULT_DATE_FORMAT).strftime('%Y')
+            if trade_year not in self.trade_days_yearly:
+                self.trade_days_yearly[trade_year] = 0
+            self.trade_days_yearly[trade_year] += 1
         self.fill_key_trade_dates()
 
     def get_closest_date(self, date: datetime.datetime, dates_list: list, date_type: str = "min") -> str:
@@ -110,6 +131,8 @@ class BacktestStrategy:
                 self.key_trade_dates[current_year]["all_quarters"][current_month].append(dt)
         for i, current_year in enumerate(self.key_trade_dates):
             max_trade_date = max(self.key_trade_dates[current_year]["all_dates"]).strftime(self.DEFAULT_DATE_FORMAT)
+            if self.rebalance_enabled and self.rebalance_mode == 'yearly':
+                self.rebalance_dates.append(max_trade_date)
             self.key_trade_dates[current_year]["max_date"] = max_trade_date
             for k, quarter in enumerate(self.key_trade_dates[current_year]["all_quarters"]):
                 if len(self.key_trade_dates[current_year]["all_quarters"][quarter]) < 1:
@@ -118,6 +141,8 @@ class BacktestStrategy:
                     self.DEFAULT_DATE_FORMAT
                 )
                 self.key_trade_dates[current_year]["all_quarters"][quarter] = max_q_date
+                if self.rebalance_enabled and self.rebalance_mode == 'quarterly':
+                    self.rebalance_dates.append(max_q_date)
             del self.key_trade_dates[current_year]["all_dates"]
         self.strategy_date_start = self.get_closest_date(self.date_start, start_end_data["start_dates"], "min")
         self.strategy_date_finish = self.get_closest_date(self.date_finish, start_end_data["end_dates"], "max")
@@ -125,7 +150,7 @@ class BacktestStrategy:
 
     def load_asset_prices(self) -> None:
         self.load_trade_dates()
-        tickers_to_ignore = ["CBRT", "LQDT"]
+        tickers_to_ignore = []
         all_tickers = []
         for k, ticker in enumerate(self.assets):
             if ticker in tickers_to_ignore:
@@ -144,14 +169,14 @@ class BacktestStrategy:
             for ticker in all_tickers:
                 if ticker not in self.trade_data[date]:
                     previous_price = None
-                    price_backdate_limit = 30
+                    price_backdate_limit = 60
                     current_price_backdate = 0
                     previous_date = date
                     while previous_price is None:
                         current_price_backdate += 1
                         if current_price_backdate >= price_backdate_limit:
                             break
-                        if previous_date is datetime.datetime:
+                        if not isinstance(previous_date, datetime.datetime):
                             previous_date = datetime.datetime.strptime(previous_date, self.DEFAULT_DATE_FORMAT)
                         previous_date = previous_date - datetime.timedelta(days=1)
                         formatted_prev_date = previous_date.strftime("%Y-%m-%d")
@@ -160,6 +185,30 @@ class BacktestStrategy:
                                 price = self.trade_data[formatted_prev_date][ticker]
                                 self.trade_data[date][ticker] = price
                                 break
+        self.trade_dates = [datetime.datetime.strptime(dt, self.DEFAULT_DATE_FORMAT) for dt in self.trade_data.keys()]
+
+    def get_asset_stop_loss(self, asset: str, current_date: str) -> float:
+        dt_current = datetime.datetime.strptime(current_date, self.DEFAULT_DATE_FORMAT)
+        some_weeks_ago = dt_current - datetime.timedelta(weeks=5)
+        one_week_ago = dt_current - datetime.timedelta(days=7)
+        start = self.get_closest_date(some_weeks_ago, self.trade_dates, 'min')
+        finish = self.get_closest_date(one_week_ago, self.trade_dates, 'min')
+        asset_prices = []
+        start_price_collection = False
+
+        for date, trade_data in self.trade_data.items():
+            if date == start:
+                start_price_collection = True
+            if date == finish:
+                break
+            if start_price_collection and asset in trade_data:
+                asset_prices.append(trade_data[asset])
+        max_price = max(asset_prices)
+        current_price = self.trade_data[current_date][asset]
+        price_diff = max_price * self.DEFAULT_STOP_LOSS_PERCENTAGE
+        stop_loss_price = max_price - price_diff
+        # print(f'asset: {asset}, {current_price}, {price_diff}, {stop_loss_price}')
+        return stop_loss_price
 
     def buy_asset(self, asset_ticker: str, quantity: int, price: float) -> None:
         return self.buy_or_sell_asset("buy", asset_ticker, quantity, price)
@@ -175,6 +224,9 @@ class BacktestStrategy:
             self.assets[asset_ticker]["quantity"] -= quantity
             self.cash_balance += quantity * price
         elif transaction_type == "buy":
+            final_balance = self.cash_balance - (quantity * price)
+            if final_balance < 0:
+                raise Exception('Cash balance can not be less than 0')
             self.assets[asset_ticker]["quantity"] += quantity
             self.cash_balance -= quantity * price
         if self.current_date not in self.transactions_history[transaction_type]:
@@ -188,25 +240,11 @@ class BacktestStrategy:
     def distribute_cash_for_assets(self, cash_amount: float, asset_prices: dict) -> dict:
         """
         Распределяет наличные для равномерной закупки активов в примерно равных частях
-        :param cash_amount:
-        :param asset_prices:
-        :return:
         """
         num_assets = len(asset_prices)
-        equal_amount = cash_amount / num_assets
-
-        assets_to_buy = {ticker: 0 for ticker in asset_prices}
-        # Определяем количество акций, которые можно купить на выделенную сумму
-        for ticker, price in asset_prices.items():
-            assets_to_buy[ticker] = int(equal_amount // price)
-        # Вычисляем оставшиеся деньги
-        remaining_cash = cash_amount - sum(assets_to_buy[ticker] * asset_prices[ticker] for ticker in asset_prices)
-        # Распределяем оставшиеся деньги
-        for ticker, price in asset_prices.items():
-            while remaining_cash >= price:
-                assets_to_buy[ticker] += 1
-                remaining_cash -= price
-        return assets_to_buy
+        cash_per_asset = cash_amount / num_assets
+        distribution = {ticker: int(cash_per_asset // price) for ticker, price in asset_prices.items()}
+        return distribution
 
     def topup_cash_balance(self, amount: float):
         self.cash_balance += amount
@@ -221,21 +259,24 @@ class BacktestStrategy:
         for ticker, price_data in self.historical_data[date].items():
             total += price_data["price_total"]
         self.historical_data[date]["all_assets_price"] = total
-        self.cash_balance = total
+        # self.cash_balance = total
 
     def get_asset_price_for_date(self, asset_ticker: str, date: str) -> float:
         return self.trade_data[date][asset_ticker]
 
     def make_initial_purchase(self, date: str) -> None:
+        print('---make_initial_purchase')
         asset_prices = {}
         for asset_ticker in self.assets_for_strategy:
             current_asset_price = self.get_asset_price_for_date(asset_ticker, self.strategy_date_start)
             asset_prices[asset_ticker] = current_asset_price
         cash_allocation = self.distribute_cash_for_assets(self.cash_balance, asset_prices)
+        print(f'cash_allocation: {cash_allocation}')
         for ticker, qnty in cash_allocation.items():
             price = asset_prices[ticker]
             self.buy_asset(ticker, qnty, price)
             self.update_history(ticker, date, price, qnty)
+        print('initial cash:', self.cash_balance)
 
     def set_assets_for_strategy(self, tickers: list) -> None:
         self.assets_for_strategy = tickers
@@ -243,22 +284,71 @@ class BacktestStrategy:
     def rebalancing(self, assets_data: dict) -> None:
         if self.current_date not in self.transactions_history["rebalancing"]:
             self.transactions_history["rebalancing"].append(self.current_date)
-        total_price = sum(info["price_total"] for info in assets_data.values())
+        total_price = sum(info["price_total"] for info in assets_data.values() if isinstance(info, dict))
         equal_price_total = total_price / len(assets_data)
+        self.rebalance_init_transaction('sell', assets_data, equal_price_total)
+        self.rebalance_init_transaction('buy', assets_data, equal_price_total)
 
+    def rebalance_init_transaction(self, transation_type: str, assets_data, equal_price_total) -> None:
         for ticker, info in assets_data.items():
+            if not isinstance(info, dict):
+                continue
             current_price_total = info["price_total"]
             difference = equal_price_total - current_price_total
-
             quantity_to_buy_or_sell = int(abs(difference) // info["price_per_item"])
-            if difference > 0:
+            if difference > 0 and transation_type == 'buy':
                 self.buy_asset(ticker, quantity_to_buy_or_sell, info["price_per_item"])
-            else:
+            elif transation_type == 'sell':
                 self.sell_asset(ticker, quantity_to_buy_or_sell, info["price_per_item"])
+
+    def set_rebalance_mode(self, mode: str) -> None:
+        valid_modes = ['quarterly', 'yearly']
+        if mode not in valid_modes:
+            self.rebalance_mode = 'yearly'
+        else:
+            self.rebalance_mode = mode
+
+    def draw_charts(self):
+        asset_days = {}
+        asset_prices = {}
+        for asset in self.assets_for_strategy:
+            asset_days[asset] = []
+            asset_prices[asset] = []
+        for date, asset_data in self.historical_data.items():
+            for ticker in self.assets_for_strategy:
+                asset_days[ticker].append(date)
+                price = asset_data[ticker]['price_total']
+                asset_prices[ticker].append(price)
+        df = pd.DataFrame({
+            'stock': self.assets_for_strategy,
+            'price': [asset_prices[token] for token, price_data in asset_prices.items()],
+            'date': [asset_days[token] for token, date_data in asset_days.items()],
+        })
+        df = df.set_index(['stock']).apply(pd.Series.explode).reset_index()
+        # TODO дописать тут рисование графиков
+
+    def export_history(self):
+        with open(self.EXPORT_FILENAME, 'w') as f:
+            writer = csv.writer(f, dialect='excel')
+            header = ['Year', 'ALL'] + self.assets_for_strategy
+            skip_cols = ['Year']
+            writer.writerow(header)
+            for date, history_data in self.historical_data.items():
+                current_row = [date]
+                for col in header:
+                    if col in skip_cols:
+                        continue
+                    if col == 'ALL':
+                        if 'all_assets_price' in history_data:
+                            current_row += [history_data['all_assets_price']]
+                        else:
+                            current_row += [0]
+                    else:
+                        current_row += [history_data[col]['price_total']]
+                writer.writerow(current_row)
 
     def start_backtest(self) -> None:
         self.current_date = self.date_start.strftime(self.DEFAULT_DATE_FORMAT)
-        self.load_trade_dates()
         self.load_asset_prices()
         self.make_initial_purchase(self.date_start.strftime(self.DEFAULT_DATE_FORMAT))
 
@@ -278,25 +368,44 @@ class BacktestStrategy:
 
             for ticker, price in ticker_data.items():
                 ticker_quantity = self.assets[ticker]["quantity"]
+                ticker_stop_loss_price = self.get_asset_stop_loss(ticker, date)
+                # print(f'{ticker}, current: {price}, stop: {ticker_stop_loss_price}')
+                if price <= ticker_stop_loss_price and ticker_quantity > 0:
+                    if ticker not in self.stop_losses:
+                        self.stop_losses[ticker] = []
+                    self.stop_losses[ticker].append((date, price))
+                    if 'CBRT' in self.assets_for_strategy:
+                        asset_price = self.assets[ticker]['current_price']
+                        print('--> stop loss activated', date, ticker, price, ticker_stop_loss_price)
+                        print(f'asset_price: {asset_price}, asset_quantity: {ticker_quantity}, cash: {self.cash_balance}')
+                        self.sell_asset(ticker, ticker_quantity, asset_price)
+                        print(f'sold {ticker}, cash: {self.cash_balance}')
+                        cbrt_current_price = self.trade_data[date][ticker]
+                        cbrt_quantity_to_buy = self.cash_balance // cbrt_current_price
+                        self.buy_asset('CBRT', cbrt_quantity_to_buy, cbrt_current_price)
+                        print(f'bought CBRT ({cbrt_quantity_to_buy} * {cbrt_current_price} = '
+                              f'{cbrt_quantity_to_buy * cbrt_current_price}), cash: {self.cash_balance}')
+
                 self.update_history(ticker, date, price, ticker_quantity)
+
+            if self.rebalance_enabled and date in self.rebalance_dates:
+                print(f'--> rebalancing at: {date}')
+                self.rebalancing(self.historical_data[date])
             self.update_assets_balance_for_date(date)
 
 
-# date_start = '2000-01-05'
-# date_finish = '2024-08-02'
-# initial_balance = 10000
-# assets_to_buy = ['GOLD', 'DOBR', 'MURM']
+if __name__ == '__main__':
+    date_start = '2000-01-05'
+    date_finish = '2024-08-15'
+    initial_balance = 100000
+    assets_to_buy = ['GOLD', 'DOBR', 'CBRT']
 
-# bt = BacktestStrategy()
-# bt.set_dates(date_start, date_finish)
-# bt.set_assets_for_strategy(assets_to_buy)
-# bt.topup_cash_balance(initial_balance)
-# print(bt.cash_balance)
-# bt.backtest()
-# print(bt.cash_balance)
-# print(bt.historical_data)
-# print(bt.assets)
-# bt.load_asset_prices()
-# print(bt.trade_data)
-# print(bt.key_trade_dates)
-# print(bt.strategy_date_start, bt.strategy_date_finish)
+    bt = BacktestStrategy()
+    bt.set_rebalance_mode('quarterly')
+    bt.rebalance_enabled = True
+    bt.set_dates(date_start, date_finish)
+    bt.set_assets_for_strategy(assets_to_buy)
+    bt.topup_cash_balance(initial_balance)
+    bt.backtest()
+    bt.export_history()
+    print(bt.stop_losses)

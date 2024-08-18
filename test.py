@@ -101,3 +101,13 @@ class TestBacktestStrategy(unittest.TestCase):
             "rebalancing": ["2024-08-02"],
         }
         self.assertEqual(bt.transactions_history, expected_history)
+
+    def test_buy(self):
+        bt = BacktestStrategy()
+        initial_balance = 1000
+        bt.topup_cash_balance(initial_balance)
+        self.assertEqual(bt.cash_balance, initial_balance)
+        bt.buy_asset('CBRT', 10, 10)
+        self.assertEqual(bt.cash_balance, initial_balance - 10 * 10)
+        bt.sell_asset('CBRT', 10, 10)
+        self.assertEqual(bt.cash_balance, initial_balance)
