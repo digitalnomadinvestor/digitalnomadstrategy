@@ -54,7 +54,7 @@
 
 #### Предварительный расчет на исторических данных
 
-[[![Сравнение портфелей](https://raw.githubusercontent.com/digitalnomadinvestor/digitalnomadstrategy/main/data/chart_01.png)](https://raw.githubusercontent.com/digitalnomadinvestor/digitalnomadstrategy/main/data/chart_01.png)
+[![Сравнение портфелей](https://raw.githubusercontent.com/digitalnomadinvestor/digitalnomadstrategy/main/data/chart_01.png)](https://raw.githubusercontent.com/digitalnomadinvestor/digitalnomadstrategy/main/data/chart_01.png)
 
 #### Отказ от гарантий
 Информация предоставляется как есть, без каких либо гарантий на получение какой-либо прибыли в результате действия 
