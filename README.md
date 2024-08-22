@@ -17,9 +17,11 @@
 *  фонд денежного рынка (например [LQDT](https://www.wealthim.ru/products/bpif/wimfl/investment_strategy/) / 
 [SBMM](https://first-am.ru/individuals/etf/etf-sbmm) / [AKMM](https://www.alfacapital.ru/individual/bpifs/bpif-akmm))
 *  фонд на [Индекс МосБиржи IMOEX](https://www.moex.com/ru/index/IMOEX), например [EQMX](https://www.wealthim.ru/products/bpif/wimfimb/investment_strategy/) (ВТБ), [SBMX](https://www.first-am.ru/individuals/etf/etf-moex) (Сбер)
-*  золото - GLDRUB_TOM. Либо, если хочется просто потестировать стратегию на минимальных суммах - 
+*  золото - GLDRUB_TOM (не забывайте, что придется самостоятельно платить НДФЛ при использовании этого инструмента). 
+Если хочется просто потестировать стратегию на минимальных суммах или нет желания самому заниматься оплатой налогов 
+(за операции с фонами и акциями НФДЛ за вас платит брокер) - 
 можно купить фонд на золото ([GOLD](https://www.wealthim.ru/products/bpif/wimfg/investment_strategy/) - от ВТБ, [SBGD](https://www.first-am.ru/individuals/etf/etf-sbgd) - от Сбер, и тд)
-2. на каждый актив устанавливается стоп-лосс - 10%, который регулярно перемещается вверх;
+2. на каждый актив устанавливается стоп-лосс - 10%, который регулярно перемещается вверх каждый квартал;
 3. в случае срабатывания стоп-лосс по какому либо из активов, деньги от продажи перекладываются в фонд 
 денежного рынка и там лежат до следующей ребалансировки;
 4. в случае если по каким либо причинам выбранный фонд денежного рынка перестает работать, деньги перекладываются в 
@@ -32,7 +34,9 @@
 * ребалансировка портфеля чаще чем раз в год.
 
 #### Публичный портфель
-Доступен по адресу https://snowball-income.com/public/portfolios/blbsKZLUrh. Первое пополнение: 2024-08-12.
+Доступен по адресу https://snowball-income.com/public/portfolios/blbsKZLUrh (со всей историей операций).
+
+История изменений в стратегии доступна в [CHANGELOG](https://github.com/digitalnomadinvestor/digitalnomadstrategy/blob/main/CHANGELOG.md).
 
 #### Пополнение баланса
 Все активы пополняются в равных долях. Если суммы пополнения не хватает для равного распределения по активам, 
