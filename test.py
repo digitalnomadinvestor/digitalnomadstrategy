@@ -96,11 +96,29 @@ class TestBacktestStrategy(unittest.TestCase):
         self.assertEqual(bt.assets["B"], expected_assets["B"])
 
         expected_history = {
-            "buy": {"2024-08-02": {"B": {"price": 1, "quantity": 5}}},
-            "sell": {"2024-08-02": {"A": {"price": 1, "quantity": 5}}},
-            "rebalancing": ["2024-08-02"],
+            'buy': {'2024-08-02': {'B': {'price': 1, 'quantity': 5.0}}},
+            'sell': {'2024-08-02': {'A': {'price': 1, 'quantity': 5.0}}}, 'rebalancing': ['2024-08-02']
         }
         self.assertEqual(bt.transactions_history, expected_history)
+
+    def test_rebalancing_with_zero_price(self):
+        bt = BacktestStrategy()
+        bt.topup_cash_balance(400)
+        bt.current_date = "2024-08-02"
+        bt.trade_data[bt.current_date] = {"GOLD": 6281.85, "DOBR": 17632.81, 'CBRT': 7981.528973204839}
+        bt.transactions_history = {"buy": {}, "sell": {}, "rebalancing": []}
+        trade_data = {
+            'GOLD': {'current_price': 6281.86, 'price_total': 0.0, 'price_per_item': 6281.85, 'quantity': 0},
+            'DOBR': {'current_price': 17632.81, 'price_total': 0.0, 'price_per_item': 17632.81, 'quantity': 0},
+            'CBRT': {'current_price': 7981.528973204839, 'price_total': 7981.528973204839,
+                     'price_per_item': 7981.528973204839, 'quantity': 1.0}
+        }
+        for ticker, data in trade_data.items():
+            bt.update_history(ticker, bt.current_date, data["current_price"], data["quantity"])
+
+        bt.assets = bt.historical_data[bt.current_date]
+        bt.rebalancing(bt.assets)
+        bt.update_assets_balance_for_date(bt.current_date)
 
     def test_buy(self):
         bt = BacktestStrategy()
