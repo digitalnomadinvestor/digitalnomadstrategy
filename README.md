@@ -7,4 +7,4 @@
 * Данные по ставке ЦБ РФ, данные с 1992-01-01, CSV-файл [скачать](https://github.com/digitalnomadinvestor/digitalnomadstrategy/blob/main/cbr_rates.csv);
 * Цены на фонд ликвидности, данные с 2020-03-25, CSV-файл [скачать](https://github.com/digitalnomadinvestor/digitalnomadstrategy/blob/main/BBG00RPRPX12.csv).
 
-Как применить эти данные в реальной жизни читайте [в моем блоге](https://tinyurl.com/mtrwvf8s).
+Как применить эти данные в реальной жизни читайте [в моем блоге](https://tinyurl.com/47xd9pem).
