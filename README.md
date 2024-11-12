@@ -5,7 +5,7 @@
 * Цены на золото, данные с 1997-06-02, CSV-файл [скачать](https://github.com/digitalnomadinvestor/digitalnomadstrategy/blob/main/gold.csv);
 * Курс доллара по отношению к рублю, данные с 1997-06-05, CSV-файл [скачать](https://github.com/digitalnomadinvestor/digitalnomadstrategy/blob/main/currency_rates_usd.csv);
 * Данные по ставке ЦБ РФ, данные с 1992-01-01, CSV-файл [скачать](https://github.com/digitalnomadinvestor/digitalnomadstrategy/blob/main/cbr_rates.csv);
-* Динамика максимальной процентной ставки (по вкладам в российских рублях) десяти кредитных организаций, привлекающих наибольший объём депозитов физических лиц, данные с начала 2010 года, CSV-файл [скачать](https://github.com/digitalnomadinvestor/digitalnomadstrategy/blob/main/deposit_rate.csv)
+* Динамика максимальной процентной ставки (по вкладам в российских рублях) десяти кредитных организаций, привлекающих наибольший объём депозитов физических лиц, данные с начала 2010 года, CSV-файл [скачать](https://github.com/digitalnomadinvestor/digitalnomadstrategy/blob/main/deposit_rate.csv). Источник - [ЦБ РФ](https://www.cbr.ru/statistics/avgprocstav/);
 * Цены на фонд ликвидности, данные с 2020-03-25, CSV-файл [скачать](https://github.com/digitalnomadinvestor/digitalnomadstrategy/blob/main/BBG00RPRPX12.csv).
 
 Как применить эти данные в реальной жизни читайте [в моем блоге](https://tinyurl.com/mtrwvf8s).
